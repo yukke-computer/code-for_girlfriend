@@ -1,0 +1,232 @@
+import time
+import requests
+import json
+import schedule
+from bs4 import BeautifulSoup
+from datetime import date
+import os
+
+# 从环境变量获取微信公众号信息
+appID = os.getenv('WECHAT_APPID')
+appSecret = os.getenv('WECHAT_APPSECRET')
+openId = os.getenv('WECHAT_OPENID')
+weather_template_id = os.getenv('WEATHER_TEMPLATE_ID')
+timetable_template_id = os.getenv('TIMETABLE_TEMPLATE_ID')
+
+# 在一起的日期，格式为 YYYY, MM, DD
+anniversary_date = date(2025, 1, 14)
+
+
+def get_weather(my_city):
+    """
+    获取指定城市的天气信息
+    :param my_city: 城市名称
+    :return: 城市名称、温度范围、天气类型、风力信息
+    """
+    urls = [
+        "http://www.weather.com.cn/textFC/hb.shtml",
+        "http://www.weather.com.cn/textFC/db.shtml",
+        "http://www.weather.com.cn/textFC/hd.shtml",
+        "http://www.weather.com.cn/textFC/hz.shtml",
+        "http://www.weather.com.cn/textFC/hn.shtml",
+        "http://www.weather.com.cn/textFC/xb.shtml",
+        "http://www.weather.com.cn/textFC/xn.shtml"
+    ]
+    for url in urls:
+        try:
+            resp = requests.get(url)
+            print(f"请求 {url} 的状态码: {resp.status_code}")
+            resp.raise_for_status()
+            text = resp.content.decode("utf-8")
+            soup = BeautifulSoup(text, 'html5lib')
+            print(soup.prettify())  # 打印 HTML 内容进行调试
+            div_conMidtab = soup.find("div", class_="conMidtab")
+            tables = div_conMidtab.find_all("table")
+            for table in tables:
+                trs = table.find_all("tr")[2:]
+                for index, tr in enumerate(trs):
+                    tds = tr.find_all("td")
+                    # 这里倒着数，因为每个省会的 td 结构跟其他不一样
+                    city_td = tds[-8]
+                    this_city = list(city_td.stripped_strings)[0]
+                    if this_city == my_city:
+                        high_temp_td = tds[-5]
+                        low_temp_td = tds[-2]
+                        weather_type_day_td = tds[-7]
+                        weather_type_night_td = tds[-4]
+                        wind_td_day = tds[-6]
+                        wind_td_day_night = tds[-3]
+
+                        high_temp = list(high_temp_td.stripped_strings)[0]
+                        low_temp = list(low_temp_td.stripped_strings)[0]
+                        weather_typ_day = list(weather_type_day_td.stripped_strings)[0]
+                        weather_type_night = list(weather_type_night_td.stripped_strings)[0]
+
+                        wind_day = list(wind_td_day.stripped_strings)[0] + list(wind_td_day.stripped_strings)[1]
+                        wind_night = list(wind_td_day_night.stripped_strings)[0] + list(wind_td_day_night.stripped_strings)[1]
+
+                        # 如果没有白天的数据就使用夜间的
+                        temp = f"{low_temp}——{high_temp}摄氏度" if high_temp != "-" else f"{low_temp}摄氏度"
+                        weather_typ = weather_typ_day if weather_typ_day != "-" else weather_type_night
+                        wind = f"{wind_day}" if wind_day != "--" else f"{wind_night}"
+                        return this_city, temp, weather_typ, wind
+        except requests.RequestException as e:
+            print(f"请求天气信息时出错: {e}")
+    return None
+
+
+def get_access_token():
+    """
+    获取微信公众号的 access_token
+    :return: access_token
+    """
+    try:
+        # 获取 access token 的 url
+        url = 'https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid={}&secret={}'.format(
+            appID.strip(), appSecret.strip())
+        response = requests.get(url).json()
+        print(response)
+        access_token = response.get('access_token')
+        return access_token
+    except requests.RequestException as e:
+        print(f"获取 access_token 时出错: {e}")
+        return None
+
+
+def get_daily_love():
+    """
+    获取每日一句情话
+    :return: 情话内容
+    """
+    try:
+        # 每日一句情话
+        url = "https://api.lovelive.tools/api/SweetNothings/Serialization/Json"
+        r = requests.get(url)
+        r.raise_for_status()
+        all_dict = json.loads(r.text)
+        sentence = all_dict['returnObj'][0]
+        daily_love = sentence
+        return daily_love
+    except requests.RequestException as e:
+        print(f"获取每日情话时出错: {e}")
+        return ""
+
+
+def calculate_anniversary_days():
+    """
+    计算在一起的天数
+    :return: 在一起的天数
+    """
+    today = date.today()
+    delta = today - anniversary_date
+    return delta.days
+
+
+def send_weather(access_token, weather):
+    """
+    发送天气消息
+    :param access_token: 微信公众号的 access_token
+    :param weather: 天气信息元组
+    """
+    if access_token is None or weather is None:
+        return
+    import datetime
+    today = datetime.date.today()
+    today_str = today.strftime("%Y年%m月%d日")
+    anniversary_days = calculate_anniversary_days()
+
+    body = {
+        "touser": openId.strip(),
+        "template_id": weather_template_id.strip(),
+        "url": "https://weixin.qq.com",
+        "data": {
+            "date": {
+                "value": today_str
+            },
+            "region": {
+                "value": weather[0]
+            },
+            "weather": {
+                "value": weather[2]
+            },
+            "temp": {
+                "value": weather[1]
+            },
+            "wind_dir": {
+                "value": weather[3]
+            },
+            "today_note": {
+                "value": get_daily_love()
+            },
+            "anniversary": {
+                "value": f"我们已经在一起 {anniversary_days} 天啦！"
+            }
+        }
+    }
+    try:
+        url = 'https://api.weixin.qq.com/cgi-bin/message/template/send?access_token={}'.format(access_token)
+        print(requests.post(url, json.dumps(body)).text)
+    except requests.RequestException as e:
+        print(f"发送天气消息时出错: {e}")
+
+
+def send_timetable(access_token, message):
+    """
+    发送课程表消息
+    :param access_token: 微信公众号的 access_token
+    :param message: 课程表消息内容
+    """
+    if access_token is None:
+        return
+    body = {
+        "touser": openId,
+        "template_id": timetable_template_id.strip(),
+        "url": "https://weixin.qq.com",
+        "data": {
+            "message": {
+                "value": message
+            },
+        }
+    }
+    try:
+        url = 'https://api.weixin.qq.com/cgi-bin/message/template/send?access_token={}'.format(access_token)
+        print(requests.post(url, json.dumps(body)).text)
+    except requests.RequestException as e:
+        print(f"发送课程表消息时出错: {e}")
+
+
+def weather_report(city):
+    """
+    天气报告主函数
+    :param city: 城市名称
+    """
+    # 1. 获取 access_token
+    access_token = get_access_token()
+    # 2. 获取天气
+    weather = get_weather(city)
+    print(f"天气信息： {weather}")
+    # 3. 发送消息
+    send_weather(access_token, weather)
+
+
+def timetable(message):
+    """
+    课程表消息主函数
+    :param message: 课程表消息内容
+    """
+    # 1. 获取 access_token
+    access_token = get_access_token()
+    # 3. 发送消息
+    send_timetable(access_token, message)
+
+
+if __name__ == '__main__':
+    weather_report("绍兴市")
+    # timetable("第二教学楼十分钟后开始英语课")
+
+schedule.every().day.at("08:00").do(weather_report, "绍兴市")
+schedule.every().monday.at("13:50").do(timetable, "第二教学楼十分钟后开始英语课")
+while True:
+    schedule.run_pending()
+    time.sleep(1)
+    
