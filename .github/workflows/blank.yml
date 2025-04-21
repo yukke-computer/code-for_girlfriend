@@ -32,4 +32,7 @@ jobs:
           WEATHER_TEMPLATE_ID: ${{ secrets.WEATHER_TEMPLATE_ID }}
           TIMETABLE_TEMPLATE_ID: ${{ secrets.TIMETABLE_TEMPLATE_ID }}
         run: |
-          python weather-report.py  # 确保脚本文件名正确
+          python weather-report  # 确保脚本文件名正确
+
+
+    
