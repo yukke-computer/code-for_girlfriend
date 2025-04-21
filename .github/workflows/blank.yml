@@ -1,0 +1,35 @@
+name: Weather Report Automation
+
+on:
+  # 支持手动触发
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *'  # 每天 UTC 时间 00:00 执行，根据需要调整时间
+
+jobs:
+  weather-report:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.13.3
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4 schedule html5lib
+
+      - name: Run weather report script
+        env:
+          WECHAT_APPID: ${{ secrets.WECHAT_APPID }}
+          WECHAT_APPSECRET: ${{ secrets.WECHAT_APPSECRET }}
+          WECHAT_OPENID: ${{ secrets.WECHAT_OPENID }}
+          WEATHER_TEMPLATE_ID: ${{ secrets.WEATHER_TEMPLATE_ID }}
+          TIMETABLE_TEMPLATE_ID: ${{ secrets.TIMETABLE_TEMPLATE_ID }}
+        run: |
+          python weather-report.py  # 确保脚本文件名正确
