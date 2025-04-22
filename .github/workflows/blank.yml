@@ -21,7 +21,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install --no-cache-dir requests beautifulsoup4
+          pip install --no-cache-dir requests beautifulsoup4 html5lib
         # 移除 schedule 库，因改用 GitHub Actions 定时
 
       - name: Run weather report script
