@@ -33,7 +33,7 @@ jobs:
           WEATHER_TEMPLATE_ID: ${{ secrets.WEATHER_TEMPLATE_ID }}
           TIMETABLE_TEMPLATE_ID: ${{ secrets.TIMETABLE_TEMPLATE_ID }}
         run: |
-          python weather-report.py  # 执行单次天气报告，无循环，执行完自动退出
+          python weather-report  # 执行单次天气报告，无循环，执行完自动退出
 
       - name: Log success
         if: success()
