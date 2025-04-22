@@ -174,6 +174,6 @@ def weather_report(city):
 
 if __name__ == '__main__':
     # 单次执行天气报告（移除 schedule 循环，仅执行一次）
-    weather_report("绍兴市")
+    weather_report("绍兴")
     # 如需同时发送课程表，取消注释并传入具体内容
     # timetable("第二教学楼十分钟后开始英语课")
